@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://support-resolution-system/events/ticket.created",
+  "title": "ticket.created",
+  "description": "Emitted when a new customer support ticket is created. Consumed by Triage Agent.",
+  "type": "object",
+  "required": ["ticket_id", "customer_id", "subject", "body", "created_at", "channel"],
+  "properties": {
+    "ticket_id": {
+      "type": "string",
+      "description": "Unique ticket identifier"
+    },
+    "customer_id": {
+      "type": "string",
+      "description": "Customer or account identifier"
+    },
+    "subject": {
+      "type": "string",
+      "description": "Ticket subject line"
+    },
+    "body": {
+      "type": "string",
+      "description": "Ticket body or description"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the ticket was created"
+    },
+    "channel": {
+      "type": "string",
+      "enum": ["email", "chat", "portal", "phone"],
+      "description": "Channel through which the ticket was submitted"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional metadata (e.g. product area, tags)"
+    }
+  }
+}

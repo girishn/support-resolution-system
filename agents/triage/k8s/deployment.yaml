@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: triage-agent
+  namespace: support-agents
+  labels:
+    app: triage-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: triage-agent
+  template:
+    metadata:
+      labels:
+        app: triage-agent
+    spec:
+      containers:
+        - name: triage
+          image: 766198264464.dkr.ecr.us-east-1.amazonaws.com/triage-agent:v3   # override with your registry image, e.g. 123456789.dkr.ecr.region.amazonaws.com/triage-agent:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: triage-agent-config
+            - secretRef:
+                name: triage-agent-keys
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      restartPolicy: Always

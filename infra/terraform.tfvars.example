@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars and set values after deploying the Kafka platform.
+# Cluster name from: terraform-aws-confluent-platform/envs/dev output cluster_name
+region       = "us-east-1"
+cluster_name = "confluent-dev-eks"
+# Must match kafka_dns_domain in the Kafka platform and domain in manifests/base/kafka.yaml
+kafka_dns_domain = "confluent.local"

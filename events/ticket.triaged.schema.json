@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://support-resolution-system/events/ticket.triaged",
+  "title": "ticket.triaged",
+  "description": "Emitted by Triage Agent after classifying a ticket. Consumed by specialized agents (Billing, Technical, Feature Guide).",
+  "type": "object",
+  "required": ["ticket_id", "customer_id", "type", "priority", "triaged_at", "reasoning"],
+  "properties": {
+    "ticket_id": {
+      "type": "string",
+      "description": "Same ticket_id from ticket.created"
+    },
+    "customer_id": {
+      "type": "string",
+      "description": "Customer or account identifier"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["billing", "technical", "feature_request", "account", "other"],
+      "description": "Category for routing to specialized agent"
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"],
+      "description": "Assigned priority"
+    },
+    "triaged_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when triage completed"
+    },
+    "reasoning": {
+      "type": "string",
+      "description": "Short explanation of classification (from LLM)"
+    },
+    "original_subject": {
+      "type": "string",
+      "description": "Original subject from ticket.created (for context)"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional metadata (e.g. sentiment, suggested tools)"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+# Non-sensitive config for Triage Agent. Adjust KAFKA_BOOTSTRAP_SERVERS if your Kafka uses a different host.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: triage-agent-config
+  namespace: support-agents
+data:
+  KAFKA_BOOTSTRAP_SERVERS: "kafka.confluent.local:9092"
+  KAFKA_TOPIC: "ticket.events"
+  # Use "ollama" with in-cluster Ollama (see ollama.yaml); no API key needed.
+  LLM_PROVIDER: "ollama"
+  OLLAMA_BASE_URL: "http://ollama.support-agents.svc:11434/v1"
+  OLLAMA_MODEL: "qwen2.5:0.5b"
+  LOG_LEVEL: "INFO"
+  # Set to "true" for e2e/CI when API credits are unavailable (skips real LLM calls).
+  MOCK_LLM: "false"

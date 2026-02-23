@@ -1,0 +1,4 @@
+confluent-kafka>=2.3.0
+openai>=1.12.0
+anthropic>=0.18.0
+python-dotenv>=1.0.0
