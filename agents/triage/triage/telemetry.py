@@ -1,5 +1,6 @@
 """Observability: structured logging, trace IDs, Prometheus metrics."""
 import logging
+import sys
 import threading
 import uuid
 
@@ -47,30 +48,54 @@ def get_or_create_trace_id(payload: dict) -> str:
 
 
 def configure_logging(log_level: str = "INFO") -> None:
-    """Configure structlog for JSON (prod) or console (dev) output."""
+    """Configure structlog and standard logging for consistent JSON/console output.
+
+    Both structlog (agent.py) and standard logging (enricher, llm, shared.aws.dynamodb)
+    are routed through ProcessorFormatter so all logs share the same format.
+    """
+    level = getattr(logging, log_level.upper(), logging.INFO)
     shared_processors: list = [
         structlog.contextvars.merge_contextvars,
-        structlog.processors.add_log_level,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+    ]
+    # Processors for stdlib-originated logs (enricher, llm, dynamodb) - merge contextvars
+    # (trace_id, ticket_id) so they appear in output, then add logger name, format %s args.
+    foreign_pre_chain: list = [
+        structlog.contextvars.merge_contextvars,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.stdlib.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
     ]
     if LOG_FORMAT == "json":
-        processors = shared_processors + [
-            structlog.processors.JSONRenderer(),
-        ]
+        renderer = structlog.processors.JSONRenderer()
     else:
-        processors = shared_processors + [
-            structlog.dev.ConsoleRenderer(),
-        ]
+        renderer = structlog.dev.ConsoleRenderer()
+
     structlog.configure(
-        processors=processors,
-        wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(logging, log_level.upper(), logging.INFO)
-        ),
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
+        processors=shared_processors + [
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
+        logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
+
+    formatter = structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=foreign_pre_chain,
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            renderer,
+        ],
+    )
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(formatter)
+    root = logging.getLogger()
+    root.addHandler(handler)
+    root.setLevel(level)
 
 
 def start_metrics_server() -> None:
