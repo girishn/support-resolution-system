@@ -15,6 +15,12 @@ OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2")
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
 # When set (e.g. "1" or "true"), skip real LLM calls and return a fixed triage (for e2e/CI without API credits).
 MOCK_LLM = os.environ.get("MOCK_LLM", "").lower() in ("1", "true", "yes")
+# DynamoDB table for customer lookups (optional). When set, triage enriches payload with customer info.
+DYNAMODB_TABLE = os.environ.get("DYNAMODB_TABLE", "").strip() or None
+# Observability: "json" for structured logs (prod), "console" for human-readable (dev).
+LOG_FORMAT = os.environ.get("LOG_FORMAT", "json").lower()
+# Prometheus metrics HTTP port.
+METRICS_PORT = int(os.environ.get("METRICS_PORT", "9090"))
 
 # Allowed values for ticket.triaged
 TRIAGE_TYPES = ("billing", "technical", "feature_request", "account", "other")

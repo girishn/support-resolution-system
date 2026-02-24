@@ -4,9 +4,11 @@ AI agent–based customer support resolution: agents consume and produce Kafka e
 
 ## Repo layout
 
-- **infra/** – Terraform that references the existing EKS + Kafka platform (from [terraform-aws-confluent-platform](https://github.com/your-org/terraform-aws-confluent-platform)) and outputs `kafka_bootstrap_servers`, `kafka_dns_zone_id`, etc. for agent config. See [infra/README.md](infra/README.md).
+- **shared/** – Reusable libraries for agents: `shared/aws/dynamodb.py` (customer lookups), etc. Agents import from `shared` to avoid duplication.
+- **agents/** – Agent services: **triage** consumes `ticket.created`, enriches with DynamoDB (optional), produces `ticket.triaged`; Billing, Technical, Feature Guide (later). Each agent has its own Dockerfile and k8s manifests.
 - **events/** – JSON Schema definitions for Kafka events: `ticket.created`, `ticket.triaged`. See [events/README.md](events/README.md).
-- **agents/** – Agent services: **triage** (Phase 2) consumes `ticket.created`, produces `ticket.triaged`; Billing, Technical, Feature Guide (later).
+- **infra/** – Terraform that references the existing EKS + Kafka platform and outputs `kafka_bootstrap_servers`, etc. See [infra/README.md](infra/README.md).
+- **docs/observability.md** – Trace IDs, structured logging, Prometheus metrics.
 
 ## Prerequisites
 
@@ -56,11 +58,10 @@ This creates `ticket.events` in the Kafka cluster (or leaves it as-is if it alre
 
 ### 4. Build and push triage agent image
 
-From **support-resolution-system/agents/triage**:
+From **support-resolution-system** repo root (build context must include `shared/`):
 
 ```bash
-cd agents/triage
-docker build -t triage-agent:latest .
+docker build -f agents/triage/Dockerfile -t triage-agent:latest .
 
 # Tag and push to your ECR (replace with your account/region):
 AWS_REGION=us-east-1
@@ -82,6 +83,7 @@ From **support-resolution-system** repo root:
 
 ```bash
 kubectl apply -f agents/triage/k8s/namespace.yaml
+kubectl apply -f agents/triage/k8s/serviceaccount.yaml
 
 # Non-sensitive config (Kafka bootstrap, topic, LLM provider, etc.)
 kubectl apply -f agents/triage/k8s/configmap.yaml

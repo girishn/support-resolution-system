@@ -10,8 +10,9 @@ IMAGE="${KAFKA_CLIENT_IMAGE:-confluentinc/cp-kafka:7.9.0}"
 TICKET_ID="e2e-$(date +%s)"
 CREATED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
+TRACE_ID="e2e-trace-$(date +%s)"
 PAYLOAD=$(cat <<EOF
-{"event_type":"ticket.created","ticket_id":"$TICKET_ID","customer_id":"e2e-cust","subject":"Billing question","body":"Why was I charged twice? Please help.","created_at":"$CREATED_AT","channel":"portal"}
+{"event_type":"ticket.created","ticket_id":"$TICKET_ID","customer_id":"e2e-cust","trace_id":"$TRACE_ID","subject":"Billing question","body":"Why was I charged twice? Please help.","created_at":"$CREATED_AT","channel":"portal"}
 EOF
 )
 

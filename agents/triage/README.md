@@ -1,11 +1,12 @@
 # Triage Agent (Phase 2)
 
-Consumes `ticket.created` events from the `ticket.events` Kafka topic, classifies each ticket using an LLM (type + priority + reasoning), and produces `ticket.triaged` events for downstream agents (Billing, Technical, Feature Guide).
+Consumes `ticket.created` events from the `ticket.events` Kafka topic, optionally enriches with customer data from DynamoDB, classifies each ticket using an LLM (type + priority + reasoning), and produces `ticket.triaged` events for downstream agents (Billing, Technical, Feature Guide).
 
 ## Behavior
 
 - **Input**: Messages on `ticket.events` with `event_type: "ticket.created"` (payload matches [ticket.created schema](../../events/ticket.created.schema.json)).
-- **Output**: Messages on `ticket.events` with `event_type: "ticket.triaged"` (payload matches [ticket.triaged schema](../../events/ticket.triaged.schema.json)).
+- **Enrichment** (optional): When `DYNAMODB_TABLE` is set, fetches customer by `customer_id` and merges into the payload.
+- **Output**: Messages on `ticket.events` with `event_type: "ticket.triaged"` (payload matches [ticket.triaged schema](../../events/ticket.triaged.schema.json)). Includes a `customer` field when enrichment succeeds.
 - **Partitioning**: Messages are keyed by `ticket_id` so all events for a ticket stay in order.
 
 ## Environment variables
@@ -22,6 +23,9 @@ Consumes `ticket.created` events from the `ticket.events` Kafka topic, classifie
 | `OLLAMA_MODEL`            | No (ollama) | Model name (default `llama3.2`). Use any model you have in Ollama (e.g. `mistral`, `llama3.2`).                                                                                                   |
 | `LOG_LEVEL`               | No          | Default `INFO`                                                                                                                                                                                    |
 | `MOCK_LLM`                | No          | Set to `1` or `true` to skip real LLM calls and return a fixed triage (for e2e/CI when API credits are unavailable).                                                                              |
+| `DYNAMODB_TABLE`          | No          | DynamoDB table name for customer enrichment. When set, the agent fetches customer by `customer_id` and adds a `customer` field to `ticket.triaged`. Pod needs IAM read access.                   |
+| `LOG_FORMAT`             | No          | `json` (default in k8s) for structured logs, or `console` for dev.                                                                                                                              |
+| `METRICS_PORT`           | No          | Prometheus metrics HTTP port (default `9090`). Exposes `/metrics`.                                                                                                                               |
 
 
 ## Run locally
@@ -53,9 +57,9 @@ Consumes `ticket.created` events from the `ticket.events` Kafka topic, classifie
 
 Running the agent in the same EKS cluster as Kafka lets it resolve `kafka.confluent.local` and `b0`/`b1`/`b2` and connect without port-forward.
 
-1. **Build and push the image** (from `agents/triage/`):
-  ```bash
-  docker build -t triage-agent:latest .
+1. **Build and push the image** (from repo root; build context must include `shared/`):
+   ```bash
+   docker build -f agents/triage/Dockerfile -t triage-agent:latest .
   export AWS_REGION=us-east-1
   aws ecr create-repository --repository-name triage-agent --region $AWS_REGION 2>/dev/null || true
   aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 766198264464.dkr.ecr.us-east-1.amazonaws.com

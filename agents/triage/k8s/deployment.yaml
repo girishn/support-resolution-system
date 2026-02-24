@@ -14,11 +14,20 @@ spec:
     metadata:
       labels:
         app: triage-agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
     spec:
+      serviceAccountName: triage-agent
       containers:
         - name: triage
-          image: 766198264464.dkr.ecr.us-east-1.amazonaws.com/triage-agent:v3   # override with your registry image, e.g. 123456789.dkr.ecr.region.amazonaws.com/triage-agent:latest
+          image: "REPLACE_ME"   # e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/triage-agent:latest (build and push from repo root first)
           imagePullPolicy: IfNotPresent
+          ports:
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
           envFrom:
             - configMapRef:
                 name: triage-agent-config

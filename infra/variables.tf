@@ -14,3 +14,15 @@ variable "kafka_dns_domain" {
   type        = string
   default     = "confluent.local"
 }
+
+variable "dynamodb_table_name" {
+  description = "Name of the DynamoDB table for customer enrichment (used by triage agent when DYNAMODB_TABLE is set)."
+  type        = string
+  default     = "support-customers"
+}
+
+variable "prometheus_stack_chart_version" {
+  description = "Helm chart version for kube-prometheus-stack (Prometheus + Grafana + Alertmanager)."
+  type        = string
+  default     = "67.3.0"
+}

@@ -14,7 +14,7 @@ Manifests to run the Triage Agent on the same EKS cluster as Kafka so `kafka.con
 
 ### 1. Build and push the image
 
-From **support-resolution-system/agents/triage** (directory that contains `Dockerfile` and `triage/`):
+From **support-resolution-system** repo root (build context must include `shared/`):
 
 ```bash
 # Example: AWS ECR in us-east-1. Replace with your region/account.
@@ -28,17 +28,20 @@ ECR_URI="${ECR_REGISTRY}/triage-agent:latest"
 
 aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
 
-docker build -t triage-agent:latest .
+docker build -f agents/triage/Dockerfile -t triage-agent:latest .
 docker tag triage-agent:latest $ECR_URI
 docker push $ECR_URI
 ```
 
-### 2. Create namespace and config
+### 2. Create namespace, service account, and config
 
 ```bash
 kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/serviceaccount.yaml
 kubectl apply -f k8s/configmap.yaml
 ```
+
+The `triage-agent` ServiceAccount is used with EKS Pod Identity when the agent accesses DynamoDB (see [DynamoDB enrichment](#dynamodb-enrichment) below).
 
 **Ollama in-cluster (free, no API key):** To use Ollama as the LLM inside the cluster (so pods can reach it without exposing your laptop):
 
@@ -63,7 +66,22 @@ If the pod fails to schedule (e.g. "didn't match PersistentVolume's node affinit
 
 If the triage agent logs **"model '...' not found"**: the model may not be pulled yet (postStart runs in background). Pull it manually: `kubectl exec -n support-agents deploy/ollama -- ollama pull qwen2.5:0.5b` (or the model name in the error), then retry.
 
-Edit `k8s/configmap.yaml` if your Kafka bootstrap is not `kafka.confluent.local:9092`. To use **Ollama on your laptop** with the in-cluster agent: expose local Ollama to the cluster (e.g. [ngrok](https://ngrok.com) or [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps) for `http://localhost:11434`), then set `LLM_PROVIDER: "ollama"`, `OLLAMA_BASE_URL: "https://your-tunnel-url"`, and `OLLAMA_MODEL: "llama3.2"` in the ConfigMap.
+Edit `k8s/configmap.yaml` if your Kafka bootstrap is not `kafka.confluent.local:9092`.
+
+#### DynamoDB enrichment
+
+To enrich tickets with customer data from DynamoDB:
+
+1. **Apply support-resolution-system infra** (creates DynamoDB table, VPC Gateway endpoint, IAM role, Pod Identity):
+   ```bash
+   cd support-resolution-system/infra
+   terraform init && terraform apply
+   ```
+2. **Get the table name** from the output: `terraform output -raw dynamodb_table_name`
+3. **Set DYNAMODB_TABLE** in `k8s/configmap.yaml` to that value, then apply the ConfigMap.
+4. **Ensure** `kubectl apply -f k8s/serviceaccount.yaml` was run (the deployment uses the `triage-agent` SA for Pod Identity).
+
+Traffic to DynamoDB stays in the VPC via the Gateway endpoint (no internet egress). To use **Ollama on your laptop** with the in-cluster agent: expose local Ollama to the cluster (e.g. [ngrok](https://ngrok.com) or [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps) for `http://localhost:11434`), then set `LLM_PROVIDER: "ollama"`, `OLLAMA_BASE_URL: "https://your-tunnel-url"`, and `OLLAMA_MODEL: "llama3.2"` in the ConfigMap.
 
 ### 3. Create the API key secret
 
@@ -76,11 +94,11 @@ kubectl create secret generic triage-agent-keys -n support-agents \
 
 ### 4. Set the image in the Deployment
 
-Edit `k8s/deployment.yaml` and set `spec.template.spec.containers[0].image` to your pushed image (e.g. `123456789012.dkr.ecr.us-east-1.amazonaws.com/triage-agent:latest`). If you use the same ECR URI variable as in step 1:
+Edit `k8s/deployment.yaml` and set `spec.template.spec.containers[0].image` to your pushed image (e.g. `123456789012.dkr.ecr.us-east-1.amazonaws.com/triage-agent:latest`). The manifest has a `REPLACE_ME` placeholder. If you use the same ECR URI variable as in step 1:
 
 ```bash
 # Linux/macOS
-sed -i "s|triage-agent:latest|$ECR_URI|" k8s/deployment.yaml
+sed -i "s|REPLACE_ME|$ECR_URI|g" k8s/deployment.yaml
 # Or edit deployment.yaml manually.
 ```
 
@@ -137,6 +155,7 @@ If e2e reports "No ticket.triaged" but you see `ticket.created` in the consumer 
 | File | Purpose |
 |------|---------|
 | `namespace.yaml` | Creates `support-agents` namespace. |
+| `serviceaccount.yaml` | Service account for triage agent; used with EKS Pod Identity for DynamoDB access. |
 | `configmap.yaml` | `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_TOPIC`, `LLM_PROVIDER`, `LOG_LEVEL`. |
 | `secret.yaml.example` | Example shape only; create real secret with `kubectl create secret generic`. |
 | `deployment.yaml` | Deployment that runs the agent with env from ConfigMap + Secret. |

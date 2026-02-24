@@ -22,3 +22,26 @@ output "eks_cluster_name" {
   description = "EKS cluster name."
   value       = data.aws_eks_cluster.this.name
 }
+
+# -----------------------------------------------------------------------------
+# DynamoDB and Pod Identity (for triage agent enrichment)
+# -----------------------------------------------------------------------------
+
+output "dynamodb_table_name" {
+  description = "DynamoDB table for customer lookups. Set DYNAMODB_TABLE in triage agent ConfigMap to this value."
+  value       = aws_dynamodb_table.customers.name
+}
+
+output "triage_agent_role_arn" {
+  description = "IAM role ARN used by the triage agent pod (Pod Identity). For reference only."
+  value       = aws_iam_role.triage_agent.arn
+}
+
+# -----------------------------------------------------------------------------
+# Prometheus stack (monitoring namespace)
+# -----------------------------------------------------------------------------
+
+output "prometheus_stack_namespace" {
+  description = "Namespace where Prometheus, Grafana, and Alertmanager are deployed."
+  value       = "monitoring"
+}

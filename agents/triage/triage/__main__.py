@@ -1,25 +1,32 @@
 """Entrypoint: python -m triage"""
-import logging
 import sys
 
-from .config import LOG_LEVEL, KAFKA_BOOTSTRAP_SERVERS, LLM_PROVIDER, OPENAI_API_KEY, ANTHROPIC_API_KEY
-from .agent import run
+import structlog
 
-logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL.upper(), logging.INFO),
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    stream=sys.stdout,
+from .config import (
+    LOG_LEVEL,
+    LOG_FORMAT,
+    KAFKA_BOOTSTRAP_SERVERS,
+    LLM_PROVIDER,
+    OPENAI_API_KEY,
+    ANTHROPIC_API_KEY,
 )
+from .agent import run
+from .telemetry import configure_logging, start_metrics_server
 
 def main():
+    configure_logging(log_level=LOG_LEVEL)
+    start_metrics_server()
+
+    log = structlog.get_logger()
     if not KAFKA_BOOTSTRAP_SERVERS:
-        logging.error("KAFKA_BOOTSTRAP_SERVERS is required (e.g. kafka.confluent.local:9092; run agent in-cluster or from a host in the VPC so b0/b1/b2 resolve)")
+        log.error("KAFKA_BOOTSTRAP_SERVERS is required", hint="e.g. kafka.confluent.local:9092")
         sys.exit(1)
     if LLM_PROVIDER == "openai" and not OPENAI_API_KEY:
-        logging.error("OPENAI_API_KEY is required when LLM_PROVIDER=openai")
+        log.error("OPENAI_API_KEY is required when LLM_PROVIDER=openai")
         sys.exit(1)
     if LLM_PROVIDER == "anthropic" and not ANTHROPIC_API_KEY:
-        logging.error("ANTHROPIC_API_KEY is required when LLM_PROVIDER=anthropic")
+        log.error("ANTHROPIC_API_KEY is required when LLM_PROVIDER=anthropic")
         sys.exit(1)
     run()
 

@@ -12,5 +12,10 @@ data:
   OLLAMA_BASE_URL: "http://ollama.support-agents.svc:11434/v1"
   OLLAMA_MODEL: "qwen2.5:0.5b"
   LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+  METRICS_PORT: "9090"
+  # DynamoDB table for customer enrichment. Set after running infra Terraform (output: dynamodb_table_name).
+  # Pod uses EKS Pod Identity (triage-agent SA) for IAM access; DynamoDB uses VPC Gateway endpoint (private).
+  # DYNAMODB_TABLE: "support-customers"
   # Set to "true" for e2e/CI when API credits are unavailable (skips real LLM calls).
   MOCK_LLM: "false"
