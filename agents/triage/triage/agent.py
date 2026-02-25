@@ -3,7 +3,7 @@ import json
 import time
 from datetime import datetime, timezone
 
-import structlog
+import structlog  # type: ignore[import-untyped]
 from confluent_kafka import Consumer, Producer
 from confluent_kafka import KafkaError
 

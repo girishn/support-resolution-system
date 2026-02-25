@@ -4,8 +4,8 @@ import sys
 import threading
 import uuid
 
-import structlog
-from prometheus_client import Counter, Histogram, start_http_server
+import structlog  # type: ignore[import-untyped]
+from prometheus_client import Counter, Histogram, start_http_server  # type: ignore[import-untyped]
 
 from .config import LOG_FORMAT, METRICS_PORT
 
