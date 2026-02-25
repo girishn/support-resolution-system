@@ -23,6 +23,33 @@ from .telemetry import (
 logger = structlog.get_logger(__name__)
 
 
+def build_triaged_event(
+    ticket_id: str,
+    customer_id: str,
+    trace_id: str,
+    result: dict,
+    subject: str,
+    body: str,
+    customer: dict | None = None,
+) -> dict:
+    """Build the ticket.triaged event payload. Used by the agent and unit tests."""
+    triaged = {
+        "event_type": "ticket.triaged",
+        "ticket_id": ticket_id,
+        "customer_id": customer_id,
+        "trace_id": trace_id,
+        "type": result["type"],
+        "priority": result["priority"],
+        "triaged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "reasoning": result["reasoning"],
+        "original_subject": subject,
+        "body": body,
+        }
+    if customer is not None:
+        triaged["customer"] = customer
+    return triaged
+
+
 def run():
     logger.debug("Starting triage agent Kafka consumer/producer loop")
     # Reduce rdkafka stderr noise (e.g. "connection closed by peer") so app logs are visible; 4 = warning.
@@ -94,20 +121,15 @@ def run():
             TICKETS_FAILED.labels(reason="llm_error").inc()
             continue
 
-        triaged = {
-            "event_type": "ticket.triaged",
-            "ticket_id": ticket_id,
-            "customer_id": customer_id,
-            "trace_id": trace_id,
-            "type": result["type"],
-            "priority": result["priority"],
-            "triaged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            "reasoning": result["reasoning"],
-            "original_subject": subject,
-            "body": body,
-        }
-        if "customer" in enriched:
-            triaged["customer"] = enriched["customer"]
+        triaged = build_triaged_event(
+            ticket_id=ticket_id,
+            customer_id=customer_id,
+            trace_id=trace_id,
+            result=result,
+            subject=subject,
+            body=body,
+            customer=enriched.get("customer"),
+        )
         out_value = json.dumps(triaged).encode("utf-8")
         headers = [("trace_id", trace_id.encode("utf-8"))]
         out_topic = topic_for_triage_type(result["type"])
