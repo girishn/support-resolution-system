@@ -118,7 +118,7 @@ From the **support-resolution-system** repo root, with `kubectl` context set to 
 ./scripts/e2e-triage.sh
 ```
 
-This produces one `ticket.created` event, waits for the agent to process it, and asserts that a matching `ticket.triaged` appears on `ticket.events`. Requires the `ticket.events` topic to exist (e.g. via `scripts/create-kafka-topics.sh`).
+This produces one `ticket.created` event, waits for the agent to process it, and asserts that a matching `ticket.triaged` appears on `ticket.triaged.billing` (with MOCK_LLM, triage always classifies as billing). Requires all topics to exist—run `scripts/create-kafka-topics.sh` first.
 
 **Without API credits:** Set `MOCK_LLM: "true"` in `k8s/configmap.yaml`, then `kubectl apply -f k8s/configmap.yaml` and restart the deployment (or delete the pod so it is recreated). The agent will return a fixed triage instead of calling Anthropic/OpenAI, so e2e passes without billing.
 
@@ -148,7 +148,9 @@ If e2e reports "No ticket.triaged" but you see `ticket.created` in the consumer 
 
 4. **Re-run e2e with logs in another terminal** – In one terminal run `kubectl logs -n support-agents -l app=triage-agent -f`, in another run `./scripts/e2e-triage.sh` and watch for the ticket_id and any errors in the agent log.
 
-5. **If you never see "Received message event_type=..."** – The agent may not be receiving the e2e message (e.g. consumer group offset already past it). Scale the triage deployment to 0 so the group has no active members, then from a pod with Kafka tools (e.g. `kubectl run kafka-client --rm -i --restart=Never -n confluent --image=confluentinc/cp-kafka:7.9.0 -- bash`): run `kafka-consumer-groups --bootstrap-server kafka.confluent.local:9092 --group triage-agent --topic ticket.events --reset-offsets --to-earliest --execute`, then scale the triage deployment back to 1.
+5. **If you never see "Received message event_type=..."** – The agent may not be receiving the e2e message (e.g. consumer group offset already past it). Scale the triage deployment to 0, then from a pod with Kafka tools (e.g. `kubectl run kafka-client --rm -i --restart=Never -n confluent --image=confluentinc/cp-kafka:7.9.0 -- bash`): run `kafka-consumer-groups --bootstrap-server kafka.confluent.local:9092 --group triage-agent --topic ticket.events --reset-offsets --to-earliest --execute`, then scale the triage deployment back to 1.
+
+**Full-flow e2e**: For triage → specialist → ticket.resolved, deploy the billing agent (see [agents/billing/k8s/README.md](../../billing/k8s/README.md)) and run `./scripts/e2e-specialists.sh`.
 
 ## Files
 
@@ -156,7 +158,7 @@ If e2e reports "No ticket.triaged" but you see `ticket.created` in the consumer 
 |------|---------|
 | `namespace.yaml` | Creates `support-agents` namespace. |
 | `serviceaccount.yaml` | Service account for triage agent; used with EKS Pod Identity for DynamoDB access. |
-| `configmap.yaml` | `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_TOPIC`, `LLM_PROVIDER`, `LOG_LEVEL`. |
+| `configmap.yaml` | `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_TOPIC` (input), `LLM_PROVIDER`, `LOG_LEVEL`. Triage produces to type-specific topics (`ticket.triaged.*`). |
 | `secret.yaml.example` | Example shape only; create real secret with `kubectl create secret generic`. |
 | `deployment.yaml` | Deployment that runs the agent with env from ConfigMap + Secret. |
 | `ollama.yaml` | Optional: Ollama LLM server (Deployment + Service + PVC) for in-cluster, free LLM; use with `LLM_PROVIDER=ollama`. |

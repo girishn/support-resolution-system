@@ -30,12 +30,13 @@ kubectl run e2e-triage-producer --rm -i --restart=Never \
 echo "Waiting 30s for agent to produce ticket.triaged..."
 sleep 30
 
-# Consumer reads from beginning, then exits after 90s with no new message (enough time to catch up on busy topics).
-echo "Consuming from ticket.events (from beginning, 90s idle timeout)..."
+# With MOCK_LLM, triage returns "billing", so triaged events go to ticket.triaged.billing.
+# Consumer reads from beginning, then exits after 90s with no new message.
+echo "Consuming from ticket.triaged.billing (from beginning, 90s idle timeout)..."
 OUTPUT=$(kubectl run e2e-triage-consumer --rm -i --restart=Never \
   --image="$IMAGE" \
   -n "$NAMESPACE" \
-  -- kafka-console-consumer --bootstrap-server $BOOTSTRAP --topic ticket.events --from-beginning --timeout-ms 90000 2>&1 || true)
+  -- kafka-console-consumer --bootstrap-server $BOOTSTRAP --topic ticket.triaged.billing --from-beginning --timeout-ms 90000 2>&1 || true)
 
 if echo "$OUTPUT" | grep '"event_type":"ticket.triaged"' | grep -q "\"ticket_id\":\"$TICKET_ID\""; then
   echo "PASS: Found ticket.triaged for ticket_id=$TICKET_ID"
@@ -47,5 +48,6 @@ else
   echo "$OUTPUT" | tail -20
   echo ""
   echo "Debug: kubectl logs -n support-agents -l app=triage-agent --tail=150"
+  echo "Note: Ensure create-kafka-topics.sh was run to create ticket.triaged.billing"
   exit 1
 fi

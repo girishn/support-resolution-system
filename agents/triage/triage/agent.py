@@ -8,6 +8,7 @@ from confluent_kafka import Consumer, Producer
 from confluent_kafka import KafkaError
 
 from .config import KAFKA_BOOTSTRAP_SERVERS, KAFKA_TOPIC
+from shared.topics import topic_for_triage_type
 from .enricher import enrich_payload
 from .llm import classify_ticket
 from .telemetry import (
@@ -103,13 +104,15 @@ def run():
             "triaged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "reasoning": result["reasoning"],
             "original_subject": subject,
+            "body": body,
         }
         if "customer" in enriched:
             triaged["customer"] = enriched["customer"]
         out_value = json.dumps(triaged).encode("utf-8")
         headers = [("trace_id", trace_id.encode("utf-8"))]
+        out_topic = topic_for_triage_type(result["type"])
         producer.produce(
-            KAFKA_TOPIC,
+            out_topic,
             key=ticket_id.encode("utf-8"),
             value=out_value,
             headers=headers,

@@ -1,5 +1,6 @@
 # Prometheus + Grafana stack for scraping agent metrics (and cluster-wide monitoring).
-# Uses PodMonitor (recommended) to scrape the triage agent; annotation-based config kept as fallback.
+# Annotation-based scraping (additionalScrapeConfigs) scrapes pods with prometheus.io/scrape=true
+# (including triage, billing, technical, feature agents).
 
 resource "helm_release" "prometheus_stack" {
   name       = "prometheus"
@@ -57,38 +58,4 @@ resource "helm_release" "prometheus_stack" {
       }
     })
   ]
-}
-
-# PodMonitor for triage agent (Prometheus Operator native; more reliable than annotation-based)
-resource "kubernetes_manifest" "triage_pod_monitor" {
-  manifest = {
-    apiVersion = "monitoring.coreos.com/v1"
-    kind       = "PodMonitor"
-    metadata = {
-      name      = "triage-agent"
-      namespace = "monitoring"
-      labels = {
-        "release" = "prometheus"
-      }
-    }
-    spec = {
-      selector = {
-        matchLabels = {
-          app = "triage-agent"
-        }
-      }
-      namespaceSelector = {
-        matchNames = ["support-agents"]
-      }
-      podMetricsEndpoints = [
-        {
-          port     = "metrics"
-          path     = "/metrics"
-          interval = "30s"
-        }
-      ]
-    }
-  }
-
-  depends_on = [helm_release.prometheus_stack]
 }

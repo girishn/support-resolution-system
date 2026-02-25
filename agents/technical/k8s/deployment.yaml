@@ -1,38 +1,38 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: triage-agent
+  name: technical-agent
   namespace: support-agents
   labels:
-    app: triage-agent
+    app: technical-agent
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: triage-agent
+      app: technical-agent
   template:
     metadata:
       labels:
-        app: triage-agent
+        app: technical-agent
       annotations:
         prometheus.io/scrape: "true"
-        prometheus.io/port: "9090"
+        prometheus.io/port: "9092"
         prometheus.io/path: "/metrics"
     spec:
-      serviceAccountName: triage-agent
       containers:
-        - name: triage
-          image: "940534692014.dkr.ecr.us-east-1.amazonaws.com/triage-agent:latest"   # e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/triage-agent:latest (build and push from repo root first)
+        - name: technical
+          image: "REPLACE_ME"
           imagePullPolicy: IfNotPresent
           ports:
             - name: metrics
-              containerPort: 9090
+              containerPort: 9092
               protocol: TCP
           envFrom:
             - configMapRef:
-                name: triage-agent-config
+                name: technical-agent-config
             - secretRef:
-                name: triage-agent-keys
+                name: technical-agent-keys
+                optional: true
           resources:
             requests:
               memory: "128Mi"

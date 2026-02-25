@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://support-resolution-system/events/ticket.resolved",
+  "title": "ticket.resolved",
+  "description": "Emitted by specialist agents (Billing, Technical, Feature) after generating a draft response.",
+  "type": "object",
+  "required": ["ticket_id", "customer_id", "triage_type", "resolved_by", "resolved_at", "response"],
+  "properties": {
+    "ticket_id": {"type": "string", "description": "Same ticket_id from ticket.created"},
+    "customer_id": {"type": "string", "description": "Customer or account identifier"},
+    "triage_type": {"type": "string", "enum": ["billing", "technical", "feature_request", "account", "other"]},
+    "resolved_by": {"type": "string", "description": "Agent that produced the response (billing, technical, feature)"},
+    "resolved_at": {"type": "string", "format": "date-time", "description": "ISO 8601 timestamp when resolution was produced"},
+    "response": {"type": "string", "description": "Draft support response text"},
+    "trace_id": {"type": "string", "description": "Distributed trace identifier"},
+    "customer": {"type": "object", "description": "Optional enriched customer data from triage"}
+  }
+}

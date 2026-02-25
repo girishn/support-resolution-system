@@ -1,12 +1,17 @@
-# Triage Agent (Phase 2)
+# Triage Agent
 
-Consumes `ticket.created` events from the `ticket.events` Kafka topic, optionally enriches with customer data from DynamoDB, classifies each ticket using an LLM (type + priority + reasoning), and produces `ticket.triaged` events for downstream agents (Billing, Technical, Feature Guide).
+Consumes `ticket.created` events from the `ticket.events` Kafka topic, optionally enriches with customer data from DynamoDB, classifies each ticket using an LLM (type + priority + reasoning), and produces `ticket.triaged` events to **type-specific topics** for downstream specialist agents (Billing, Technical, Feature).
 
 ## Behavior
 
 - **Input**: Messages on `ticket.events` with `event_type: "ticket.created"` (payload matches [ticket.created schema](../../events/ticket.created.schema.json)).
 - **Enrichment** (optional): When `DYNAMODB_TABLE` is set, fetches customer by `customer_id` and merges into the payload.
-- **Output**: Messages on `ticket.events` with `event_type: "ticket.triaged"` (payload matches [ticket.triaged schema](../../events/ticket.triaged.schema.json)). Includes a `customer` field when enrichment succeeds.
+- **Output**: Produces to type-specific topics based on classification:
+  - `ticket.triaged.billing` → Billing agent
+  - `ticket.triaged.technical` → Technical agent
+  - `ticket.triaged.feature_request` → Feature agent
+  - `ticket.triaged.account`, `ticket.triaged.other` → (future agents)
+  Payload matches [ticket.triaged schema](../../events/ticket.triaged.schema.json). Includes a `customer` field when enrichment succeeds.
 - **Partitioning**: Messages are keyed by `ticket_id` so all events for a ticket stay in order.
 
 ## Environment variables
@@ -80,10 +85,8 @@ Running the agent in the same EKS cluster as Kafka lets it resolve `kafka.conflu
 
 Full details, ECR example, and file descriptions: **[agents/triage/k8s/README.md](k8s/README.md)**.
 
-## Message format on `ticket.events`
+## Message format
 
-Each message value is JSON with an `event_type` and the event payload:
-
-- **ticket.created**: `{"event_type": "ticket.created", "ticket_id": "...", "customer_id": "...", "subject": "...", "body": "...", "created_at": "...", "channel": "portal"}`
-- **ticket.triaged**: `{"event_type": "ticket.triaged", "ticket_id": "...", "customer_id": "...", "type": "billing", "priority": "high", "triaged_at": "...", "reasoning": "...", "original_subject": "..."}`
+- **Input** (`ticket.events`): `{"event_type": "ticket.created", "ticket_id": "...", "customer_id": "...", "subject": "...", "body": "...", "created_at": "...", "channel": "portal"}`
+- **Output** (type-specific topics, e.g. `ticket.triaged.billing`): `{"event_type": "ticket.triaged", "ticket_id": "...", "customer_id": "...", "type": "billing", "priority": "high", "triaged_at": "...", "reasoning": "...", "original_subject": "...", "body": "..."}`
 
