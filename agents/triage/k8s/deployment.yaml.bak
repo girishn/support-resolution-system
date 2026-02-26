@@ -1,38 +1,38 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: billing-agent
+  name: triage-agent
   namespace: support-agents
   labels:
-    app: billing-agent
+    app: triage-agent
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: billing-agent
+      app: triage-agent
   template:
     metadata:
       labels:
-        app: billing-agent
+        app: triage-agent
       annotations:
         prometheus.io/scrape: "true"
-        prometheus.io/port: "9091"
+        prometheus.io/port: "9090"
         prometheus.io/path: "/metrics"
     spec:
+      serviceAccountName: triage-agent
       containers:
-        - name: billing
-          image: "609110637160.dkr.ecr.us-east-1.amazonaws.com/billing-agent:latest"
+        - name: triage
+          image: "REPLACE_ME"   # e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/triage-agent:latest (build and push from repo root first)
           imagePullPolicy: IfNotPresent
           ports:
             - name: metrics
-              containerPort: 9091
+              containerPort: 9090
               protocol: TCP
           envFrom:
             - configMapRef:
-                name: billing-agent-config
+                name: triage-agent-config
             - secretRef:
-                name: billing-agent-keys
-                optional: true
+                name: triage-agent-keys
           resources:
             requests:
               memory: "128Mi"

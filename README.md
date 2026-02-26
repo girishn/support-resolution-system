@@ -20,6 +20,26 @@ AI agent–based customer support resolution: agents consume and produce Kafka e
 
 ## Full deployment guide
 
+### Option A – Single Python script (recommended)
+
+Prerequisites: **terraform**, **aws CLI**, **kubectl**, **docker** on PATH. AWS credentials configured.
+
+```bash
+cd support-resolution-system
+
+# Full provision: Kafka platform (from sibling repo) + infra + topics + agents
+python scripts/provision.py --kafka-platform-path ../terraform-aws-confluent-platform --auto-approve
+
+# Or if Kafka is already deployed:
+python scripts/provision.py --cluster-name confluent-dev-eks --region us-east-1 --auto-approve
+```
+
+Use `--mock-llm` for E2E/CI (no LLM API calls). Use `--skip-*` to omit steps. Run `python scripts/provision.py --help` for options.
+
+---
+
+### Option B – Manual steps
+
 Follow these steps in order. All commands assume you are in the indicated directory.
 
 ---
@@ -277,6 +297,30 @@ Requires Kafka and agents running (e.g. in k8s). From a machine that can reach K
 pip install -r tests/requirements.txt
 KAFKA_BOOTSTRAP_SERVERS=kafka.confluent.local:9092 pytest tests/e2e/test_full_flow.py -v -s
 ```
+
+---
+
+## Layer 2: Integration tests
+
+Integration tests verify components working together. Run unit tests (no external deps):
+
+```bash
+pip install -r tests/requirements.txt
+pytest tests/unit/ -v
+```
+
+Run all tests (integration tests skip when services are unavailable):
+
+```bash
+pytest tests/ -v
+```
+
+| Test | What it verifies | Requirements |
+|------|------------------|--------------|
+| **Event schema** | `ticket.triaged` matches `events/ticket.triaged.schema.json` | None |
+| **Agent + Kafka** | Agent consumes and produces real Kafka messages | `KAFKA_BOOTSTRAP_SERVERS` set, Kafka reachable |
+| **Agent + DynamoDB** | Real DynamoDB call works with AWS credentials | `DYNAMODB_TABLE` + AWS creds, optional `DYNAMODB_TEST_CUSTOMER_ID` |
+| **Agent + Ollama** | AI returns usable response in expected format | Ollama running, `MOCK_LLM` unset |
 
 ---
 
