@@ -2,10 +2,30 @@
 
 AI agent–based customer support resolution: agents consume and produce Kafka events to triage, classify, and resolve tickets. **Triage** consumes `ticket.created`, classifies by type, and routes to type-specific topics; **Billing**, **Technical**, and **Feature** specialists consume from their topics and produce `ticket.resolved`.
 
+![Support Resolution System Architecture](./docs/support%20resolution%20system.drawio.png)
+
+**Architecture Overview**
+
+The diagram above illustrates the Support Resolution System deployed on an AWS EKS Cluster. The core components are:
+
+- **Support Tickets**: Customer tickets are created and sent to Kafka (`ticket.events`).
+- **Kafka (CFK)**: Central message bus; agents consume and produce to the following topics:
+  - `ticket.events`: Input for new support tickets.
+  - `ticket.triaged.billing`, `ticket.triaged.technical`, `ticket.triaged.feature_request`, `ticket.triaged.other`, `ticket.triaged.human`: Triage agent routes tickets here by classification.
+  - `ticket.resolved`: Specialists publish resolved tickets here.
+- **Triage Agent**: Consumes new tickets, enriches them using Amazon DynamoDB, classifies (via Ollama LLM), and produces to the appropriate triaged topic.
+- **Specialist Agents (Billing, Tech, Feature)**: Each consumes their routed tickets, processes them, and publishes resolution.
+- **Observability**: Prometheus, Trace IDs, and structured logging are used across all agents for monitoring and tracing.
+
+> **Note:** All topic names and message flows follow the naming and routing conventions in [`shared/topics.py`](shared/topics.py).
+
+
+
+
 ## Repo layout
 
 - **shared/** – Reusable libraries: `shared/topics.py` (topic mapping), `shared/specialist_base.py`, `shared/aws/dynamodb.py`.
-- **agents/** – **triage** (consumes `ticket.events`, produces to `ticket.triaged.*`), **billing**, **technical**, **feature** (consume type-specific topics, produce `ticket.resolved`). Each has Dockerfile and k8s manifests.
+- **agents/** – **triage** (consumes `ticket.events`, produces to `ticket.triaged.`*), **billing**, **technical**, **feature** (consume type-specific topics, produce `ticket.resolved`). Each has Dockerfile and k8s manifests.
 - **events/** – JSON Schema for Kafka events. See [events/README.md](events/README.md).
 - **infra/** – Terraform for DynamoDB, Prometheus stack, Pod Identity. See [infra/README.md](infra/README.md).
 - **scripts/** – `create-kafka-topics.sh`, `e2e-triage.sh`, `e2e-specialists.sh`.
@@ -150,6 +170,7 @@ docker push $ECR_URI
 Edit `agents/triage/k8s/deployment.yaml` and set `spec.template.spec.containers[0].image` to your ECR URI (e.g. `123456789012.dkr.ecr.us-east-1.amazonaws.com/triage-agent:latest`).
 
 Or on Linux/macOS:
+
 ```bash
 sed -i.bak "s|REPLACE_ME|$ECR_URI|g" agents/triage/k8s/deployment.yaml
 # Or, if the file has a different placeholder:
@@ -179,6 +200,7 @@ kubectl apply -f agents/triage/k8s/deployment.yaml
 ```
 
 **For deterministic E2E (no LLM calls):** Edit `agents/triage/k8s/configmap.yaml`, set `MOCK_LLM: "true"`, then:
+
 ```bash
 kubectl apply -f agents/triage/k8s/configmap.yaml
 kubectl rollout restart deployment/triage-agent -n support-agents
@@ -315,12 +337,14 @@ Run all tests (integration tests skip when services are unavailable):
 pytest tests/ -v
 ```
 
-| Test | What it verifies | Requirements |
-|------|------------------|--------------|
-| **Event schema** | `ticket.triaged` matches `events/ticket.triaged.schema.json` | None |
-| **Agent + Kafka** | Agent consumes and produces real Kafka messages | `KAFKA_BOOTSTRAP_SERVERS` set, Kafka reachable |
-| **Agent + DynamoDB** | Real DynamoDB call works with AWS credentials | `DYNAMODB_TABLE` + AWS creds, optional `DYNAMODB_TEST_CUSTOMER_ID` |
-| **Agent + Ollama** | AI returns usable response in expected format | Ollama running, `MOCK_LLM` unset |
+
+| Test                 | What it verifies                                             | Requirements                                                       |
+| -------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------ |
+| **Event schema**     | `ticket.triaged` matches `events/ticket.triaged.schema.json` | None                                                               |
+| **Agent + Kafka**    | Agent consumes and produces real Kafka messages              | `KAFKA_BOOTSTRAP_SERVERS` set, Kafka reachable                     |
+| **Agent + DynamoDB** | Real DynamoDB call works with AWS credentials                | `DYNAMODB_TABLE` + AWS creds, optional `DYNAMODB_TEST_CUSTOMER_ID` |
+| **Agent + Ollama**   | AI returns usable response in expected format                | Ollama running, `MOCK_LLM` unset                                   |
+
 
 ---
 
@@ -357,14 +381,16 @@ The infra Terraform deploys kube-prometheus-stack to the `monitoring` namespace.
 
 ## Reliability and review
 
-| Aspect | Behavior |
-|--------|----------|
-| **Routing logic** | LLM + confidence threshold (`CONFIDENCE_THRESHOLD`, default 0.7). Below threshold → `ticket.triaged.human`. |
-| **Unknown types** | No silent drop. LLM returns unknown type → routes to `ticket.triaged.human` (fallback queue). |
-| **Model** | Default: Ollama `qwen2.5:0.5b`. For production: `LLM_PROVIDER=anthropic` with Claude API, or larger Ollama model (e.g. `qwen2.5:3b`). |
-| **Human oversight** | Low-confidence or unknown classifications → human queue (`ticket.triaged.human`). |
-| **Response guardrails** | Policy checks before emitting `ticket.resolved`: max length, forbidden phrases, PII patterns. Violations block produce. |
-| **Accuracy eval** | `pytest tests/eval -v -s` (requires real LLM, `MOCK_LLM` unset). Uses `tests/eval/fixtures/triage_cases.json`. |
+
+| Aspect                  | Behavior                                                                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **Routing logic**       | LLM + confidence threshold (`CONFIDENCE_THRESHOLD`, default 0.7). Below threshold → `ticket.triaged.human`.                           |
+| **Unknown types**       | No silent drop. LLM returns unknown type → routes to `ticket.triaged.human` (fallback queue).                                         |
+| **Model**               | Default: Ollama `qwen2.5:0.5b`. For production: `LLM_PROVIDER=anthropic` with Claude API, or larger Ollama model (e.g. `qwen2.5:3b`). |
+| **Human oversight**     | Low-confidence or unknown classifications → human queue (`ticket.triaged.human`).                                                     |
+| **Response guardrails** | Policy checks before emitting `ticket.resolved`: max length, forbidden phrases, PII patterns. Violations block produce.               |
+| **Accuracy eval**       | `pytest tests/eval -v -s` (requires real LLM, `MOCK_LLM` unset). Uses `tests/eval/fixtures/triage_cases.json`.                        |
+
 
 ---
 
@@ -379,7 +405,8 @@ The infra Terraform deploys kube-prometheus-stack to the `monitoring` namespace.
 
 ## Agent details
 
-- [Triage agent](agents/triage/README.md) – Consumes `ticket.events`, produces to `ticket.triaged.*`
+- [Triage agent](agents/triage/README.md) – Consumes `ticket.events`, produces to `ticket.triaged.`*
 - [Billing agent](agents/billing/README.md) – Consumes `ticket.triaged.billing`, produces `ticket.resolved`
 - [Technical agent](agents/technical/README.md) – Consumes `ticket.triaged.technical`, produces `ticket.resolved`
 - [Feature agent](agents/feature/README.md) – Consumes `ticket.triaged.feature_request`, produces `ticket.resolved`
+
