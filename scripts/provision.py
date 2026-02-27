@@ -116,6 +116,19 @@ def _get_kafka_bootstrap_service(namespace: str = "confluent") -> str:
     return "kafka.confluent.local:9092"
 
 
+def _get_dynamodb_table_from_infra() -> str | None:
+    """Get dynamodb_table_name from infra Terraform output."""
+    proc = run(
+        ["terraform", "output", "-raw", "dynamodb_table_name"],
+        cwd=repo_root() / "infra",
+        check=False,
+        capture=True,
+    )
+    if proc.returncode == 0 and proc.stdout:
+        return proc.stdout.strip()
+    return None
+
+
 def create_kafka_topics(bootstrap: str | None = None, namespace: str = "confluent") -> None:
     step("Creating Kafka topics")
     if bootstrap is None:
@@ -242,6 +255,7 @@ def main() -> int:
     parser.add_argument("--skip-topics", action="store_true", help="Skip Kafka topic creation")
     parser.add_argument("--skip-build", action="store_true", help="Skip Docker build/push")
     parser.add_argument("--skip-deploy", action="store_true", help="Skip kubectl deploy")
+    parser.add_argument("--seed-dynamodb", action="store_true", help="Seed DynamoDB with test customers (after infra)")
     args = parser.parse_args()
 
     try:
@@ -262,6 +276,14 @@ def main() -> int:
 
         if not args.skip_topics:
             create_kafka_topics()
+
+        if args.seed_dynamodb:
+            step("Seeding DynamoDB test data")
+            table = _get_dynamodb_table_from_infra()
+            if table:
+                run([sys.executable, str(repo_root() / "scripts" / "seed-dynamodb.py"), "--table", table, "--region", region])
+            else:
+                print("  Skipped: could not get dynamodb_table_name from infra")
 
         agents_to_build = [a.strip() for a in args.agents.split(",") if a.strip()] if args.agents != "all" else list(AGENTS)
         agents_to_build = [a for a in agents_to_build if a in AGENTS]

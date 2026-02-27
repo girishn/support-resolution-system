@@ -22,7 +22,7 @@ spec:
       serviceAccountName: triage-agent
       containers:
         - name: triage
-          image: "609110637160.dkr.ecr.us-east-1.amazonaws.com/triage-agent:latest"   # e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/triage-agent:latest (build and push from repo root first)
+          image: "233422680010.dkr.ecr.us-east-1.amazonaws.com/triage-agent:latest"   # e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/triage-agent:latest (build and push from repo root first)
           imagePullPolicy: IfNotPresent
           ports:
             - name: metrics

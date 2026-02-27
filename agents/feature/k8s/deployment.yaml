@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: feature
-          image: "609110637160.dkr.ecr.us-east-1.amazonaws.com/feature-agent:latest"
+          image: "233422680010.dkr.ecr.us-east-1.amazonaws.com/feature-agent:latest"
           imagePullPolicy: IfNotPresent
           ports:
             - name: metrics
