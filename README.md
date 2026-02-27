@@ -329,10 +329,23 @@ pytest tests/ -v
 To enrich tickets with customer data, the triage agent needs `DYNAMODB_TABLE` and Pod Identity. Infra Terraform creates the table and role. After `terraform apply` in infra:
 
 ```bash
-terraform -C infra output -raw dynamodb_table_name
+terraform -chdir=infra output -raw dynamodb_table_name
 ```
 
 Set that value in `agents/triage/k8s/configmap.yaml` as `DYNAMODB_TABLE: "support-customers"` (or the output value), then apply and restart triage.
+
+### Bootstrap test data
+
+Seed the DynamoDB table with test customers for integration tests and E2E:
+
+```bash
+DYNAMODB_TABLE=$(terraform -chdir=infra output -raw dynamodb_table_name)
+python scripts/seed-dynamodb.py --table "$DYNAMODB_TABLE"
+```
+
+Or use a custom JSON file: `python scripts/seed-dynamodb.py --table support-customers --file customers.json`
+
+For integration tests, set `AUTO_SEED_DYNAMODB=1` to auto-seed before DynamoDB tests run.
 
 ---
 
