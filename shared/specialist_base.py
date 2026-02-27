@@ -8,6 +8,7 @@ import structlog  # type: ignore[import-untyped]
 from confluent_kafka import Consumer, Producer, KafkaError
 
 from .topics import TOPIC_RESOLVED
+from .guardrails import check_response
 
 
 logger = structlog.get_logger(__name__)
@@ -80,6 +81,12 @@ def run_specialist(
             response_text = generate_response(ticket_id, subject, body, reasoning)
         except Exception as e:
             logger.exception("Response generation failed", error=str(e))
+            continue
+
+        try:
+            response_text = check_response(response_text)
+        except ValueError as e:
+            logger.warning("Response failed policy checks, skipping produce", ticket_id=ticket_id, error=str(e))
             continue
 
         resolved = {

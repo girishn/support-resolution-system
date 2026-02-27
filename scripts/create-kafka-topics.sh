@@ -15,6 +15,7 @@ TOPICS=(
   "ticket.triaged.feature_request"
   "ticket.triaged.account"
   "ticket.triaged.other"
+  "ticket.triaged.human"
   "ticket.resolved"
 )
 
@@ -27,7 +28,7 @@ kubectl run kafka-client --rm -i --restart=Never \
   --image="$IMAGE" \
   -n "$NAMESPACE" \
   -- bash -c "
-    for t in ticket.events ticket.triaged.billing ticket.triaged.technical ticket.triaged.feature_request ticket.triaged.account ticket.triaged.other ticket.resolved; do
+    for t in ticket.events ticket.triaged.billing ticket.triaged.technical ticket.triaged.feature_request ticket.triaged.account ticket.triaged.other ticket.triaged.human ticket.resolved; do
       kafka-topics --bootstrap-server $BOOTSTRAP --create --topic \$t --partitions 6 --replication-factor 3 2>/dev/null || true
     done
     echo '---'

@@ -1,4 +1,4 @@
-"""LLM classification for triage: type, priority, reasoning."""
+"""LLM classification for triage: type, priority, reasoning, confidence."""
 import json
 import logging
 from .config import (
@@ -14,12 +14,41 @@ from .config import (
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = f"""You are a support ticket triage agent. For each ticket, output exactly:
-1. type: one of {list(TRIAGE_TYPES)} — category for routing to specialized agents.
+# "unknown" is for fallback when LLM returns a type not in the known set
+_KNOWN_TYPES = tuple(t for t in TRIAGE_TYPES if t != "unknown")
+
+SYSTEM_PROMPT = f"""You are a support ticket triage agent. For each ticket, output:
+1. type: one of {list(_KNOWN_TYPES)} — category for routing to specialized agents.
 2. priority: one of {list(TRIAGE_PRIORITIES)} — how urgent the ticket is.
 3. reasoning: one short sentence explaining your classification.
+4. confidence: a number from 0.0 to 1.0 — how confident you are in this classification (1.0 = very sure, 0.5 = uncertain).
 
-Respond with valid JSON only, no markdown: {{"type": "<type>", "priority": "<priority>", "reasoning": "<reasoning>"}}"""
+Respond with valid JSON only, no markdown: {{"type": "<type>", "priority": "<priority>", "reasoning": "<reasoning>", "confidence": <number>}}"""
+
+
+def _normalize_result(out: dict) -> dict:
+    """Validate and normalize LLM output. Unknown types route to fallback instead of raising."""
+    type_val = out.get("type", "").strip().lower()
+    priority = out.get("priority", "").strip().lower()
+    if type_val not in _KNOWN_TYPES:
+        logger.warning("LLM returned unknown type, routing to human queue", type=type_val, raw=out)
+        type_val = "unknown"
+    if priority not in TRIAGE_PRIORITIES:
+        priority = "medium"
+    confidence = out.get("confidence")
+    if confidence is None:
+        confidence = 0.5
+    try:
+        confidence = float(confidence)
+    except (TypeError, ValueError):
+        confidence = 0.5
+    confidence = max(0.0, min(1.0, confidence))
+    return {
+        "type": type_val,
+        "priority": priority,
+        "reasoning": str(out.get("reasoning", "")).strip() or "No reasoning provided.",
+        "confidence": confidence,
+    }
 
 
 def _call_openai(subject: str, body: str, channel: str) -> dict:
@@ -39,18 +68,14 @@ def _call_openai(subject: str, body: str, channel: str) -> dict:
         temperature=0.2,
     )
     text = resp.choices[0].message.content.strip()
-    # Strip markdown code block if present
     if text.startswith("```"):
         text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
     out = json.loads(text)
-    if out.get("type") not in TRIAGE_TYPES or out.get("priority") not in TRIAGE_PRIORITIES:
-        raise ValueError(f"LLM returned invalid type/priority: {out}")
-    return out
+    return _normalize_result(out)
 
 
 def _call_ollama(subject: str, body: str, channel: str) -> dict:
     from openai import OpenAI
-    # Ollama exposes an OpenAI-compatible API; no API key required.
     client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama")
     resp = client.chat.completions.create(
         model=OLLAMA_MODEL,
@@ -64,9 +89,7 @@ def _call_ollama(subject: str, body: str, channel: str) -> dict:
     if text.startswith("```"):
         text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
     out = json.loads(text)
-    if out.get("type") not in TRIAGE_TYPES or out.get("priority") not in TRIAGE_PRIORITIES:
-        raise ValueError(f"LLM returned invalid type/priority: {out}")
-    return out
+    return _normalize_result(out)
 
 
 def _call_anthropic(subject: str, body: str, channel: str) -> dict:
@@ -84,16 +107,14 @@ def _call_anthropic(subject: str, body: str, channel: str) -> dict:
     if text.startswith("```"):
         text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
     out = json.loads(text)
-    if out.get("type") not in TRIAGE_TYPES or out.get("priority") not in TRIAGE_PRIORITIES:
-        raise ValueError(f"LLM returned invalid type/priority: {out}")
-    return out
+    return _normalize_result(out)
 
 
 def classify_ticket(subject: str, body: str, channel: str = "portal") -> dict:
-    """Return dict with type, priority, reasoning."""
+    """Return dict with type, priority, reasoning, confidence."""
     if MOCK_LLM:
         logger.info("MOCK_LLM enabled: returning fixed triage (no API call)")
-        return {"type": "billing", "priority": "high", "reasoning": "Mock classification for e2e/CI."}
+        return {"type": "billing", "priority": "high", "reasoning": "Mock classification for e2e/CI.", "confidence": 1.0}
     if LLM_PROVIDER == "anthropic":
         return _call_anthropic(subject, body, channel)
     if LLM_PROVIDER == "ollama":

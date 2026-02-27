@@ -23,5 +23,8 @@ LOG_FORMAT = os.environ.get("LOG_FORMAT", "json").lower()
 METRICS_PORT = int(os.environ.get("METRICS_PORT", "9090"))
 
 # Allowed values for ticket.triaged
-TRIAGE_TYPES = ("billing", "technical", "feature_request", "account", "other")
+TRIAGE_TYPES = ("billing", "technical", "feature_request", "account", "other", "unknown")
 TRIAGE_PRIORITIES = ("low", "medium", "high", "critical")
+
+# Confidence threshold (0–1): when LLM confidence is below this, route to human queue.
+CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", "0.7"))

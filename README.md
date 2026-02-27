@@ -119,7 +119,7 @@ cd ..
 ./scripts/create-kafka-topics.sh
 ```
 
-Creates `ticket.events`, `ticket.triaged.billing`, `ticket.triaged.technical`, `ticket.triaged.feature_request`, `ticket.triaged.account`, `ticket.triaged.other`, `ticket.resolved`.
+Creates `ticket.events`, `ticket.triaged.billing`, `ticket.triaged.technical`, `ticket.triaged.feature_request`, `ticket.triaged.account`, `ticket.triaged.other`, `ticket.triaged.human`, `ticket.resolved`.
 
 ---
 
@@ -352,6 +352,19 @@ For integration tests, set `AUTO_SEED_DYNAMODB=1` to auto-seed before DynamoDB t
 ## Optional: Prometheus and Grafana
 
 The infra Terraform deploys kube-prometheus-stack to the `monitoring` namespace. Agent pods have `prometheus.io/scrape: "true"` annotations and are scraped automatically. See [docs/observability.md](docs/observability.md) for Grafana access.
+
+---
+
+## Reliability and review
+
+| Aspect | Behavior |
+|--------|----------|
+| **Routing logic** | LLM + confidence threshold (`CONFIDENCE_THRESHOLD`, default 0.7). Below threshold → `ticket.triaged.human`. |
+| **Unknown types** | No silent drop. LLM returns unknown type → routes to `ticket.triaged.human` (fallback queue). |
+| **Model** | Default: Ollama `qwen2.5:0.5b`. For production: `LLM_PROVIDER=anthropic` with Claude API, or larger Ollama model (e.g. `qwen2.5:3b`). |
+| **Human oversight** | Low-confidence or unknown classifications → human queue (`ticket.triaged.human`). |
+| **Response guardrails** | Policy checks before emitting `ticket.resolved`: max length, forbidden phrases, PII patterns. Violations block produce. |
+| **Accuracy eval** | `pytest tests/eval -v -s` (requires real LLM, `MOCK_LLM` unset). Uses `tests/eval/fixtures/triage_cases.json`. |
 
 ---
 

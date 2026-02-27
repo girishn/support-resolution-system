@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: technical
-          image: "233422680010.dkr.ecr.us-east-1.amazonaws.com/technical-agent:latest"
+          image: "992382652038.dkr.ecr.us-east-1.amazonaws.com/technical-agent:latest"
           imagePullPolicy: IfNotPresent
           ports:
             - name: metrics

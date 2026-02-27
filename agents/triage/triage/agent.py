@@ -7,7 +7,7 @@ import structlog  # type: ignore[import-untyped]
 from confluent_kafka import Consumer, Producer
 from confluent_kafka import KafkaError
 
-from .config import KAFKA_BOOTSTRAP_SERVERS, KAFKA_TOPIC
+from .config import KAFKA_BOOTSTRAP_SERVERS, KAFKA_TOPIC, CONFIDENCE_THRESHOLD
 from shared.topics import topic_for_triage_type
 from .enricher import enrich_payload
 from .llm import classify_ticket
@@ -44,9 +44,14 @@ def build_triaged_event(
         "reasoning": result["reasoning"],
         "original_subject": subject,
         "body": body,
-        }
+    }
     if customer is not None:
         triaged["customer"] = customer
+    confidence = result.get("confidence")
+    if confidence is not None:
+        triaged["confidence"] = confidence
+    if result["type"] == "unknown" or (confidence is not None and confidence < CONFIDENCE_THRESHOLD):
+        triaged["needs_review"] = True
     return triaged
 
 
@@ -132,7 +137,11 @@ def run():
         )
         out_value = json.dumps(triaged).encode("utf-8")
         headers = [("trace_id", trace_id.encode("utf-8"))]
-        out_topic = topic_for_triage_type(result["type"])
+        confidence = result.get("confidence", 1.0)
+        route_to_human = (
+            confidence < CONFIDENCE_THRESHOLD or result["type"] == "unknown"
+        )
+        out_topic = topic_for_triage_type(result["type"], route_to_human=route_to_human)
         producer.produce(
             out_topic,
             key=ticket_id.encode("utf-8"),

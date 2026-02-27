@@ -16,8 +16,18 @@
     },
     "type": {
       "type": "string",
-      "enum": ["billing", "technical", "feature_request", "account", "other"],
-      "description": "Category for routing to specialized agent"
+      "enum": ["billing", "technical", "feature_request", "account", "other", "unknown"],
+      "description": "Category for routing; unknown routes to human queue"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "LLM confidence (0-1); low values route to human queue"
+    },
+    "needs_review": {
+      "type": "boolean",
+      "description": "True when confidence below threshold or type unknown"
     },
     "priority": {
       "type": "string",

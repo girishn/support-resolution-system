@@ -49,6 +49,7 @@ KAFKA_TOPICS = [
     "ticket.triaged.feature_request",
     "ticket.triaged.account",
     "ticket.triaged.other",
+    "ticket.triaged.human",  # Fallback: unknown types, low-confidence
     "ticket.resolved",
 ]
 

@@ -1,0 +1,32 @@
+[
+  {
+    "subject": "Double charge on my card",
+    "body": "I was charged twice for my subscription this month. Can you refund the duplicate?",
+    "expected_type": "billing",
+    "expected_priority": "high"
+  },
+  {
+    "subject": "Login not working",
+    "body": "I get a 500 error when trying to log in. Tried Chrome and Safari.",
+    "expected_type": "technical",
+    "expected_priority": "high"
+  },
+  {
+    "subject": "Feature request: dark mode",
+    "body": "It would be great to have a dark mode option in the dashboard.",
+    "expected_type": "feature_request",
+    "expected_priority": "low"
+  },
+  {
+    "subject": "Account locked",
+    "body": "My account says it's locked after too many login attempts. How do I unlock?",
+    "expected_type": "account",
+    "expected_priority": "medium"
+  },
+  {
+    "subject": "General inquiry",
+    "body": "When are your business hours?",
+    "expected_type": "other",
+    "expected_priority": "low"
+  }
+]

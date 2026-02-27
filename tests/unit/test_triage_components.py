@@ -168,12 +168,20 @@ def test_topic_for_triage_type_feature_request():
     assert topic_for_triage_type("feature_request") == "ticket.triaged.feature_request"
 
 
-def test_topic_for_triage_type_unknown_defaults_to_other():
-    """Unknown type defaults to ticket.triaged.other."""
+def test_topic_for_triage_type_unknown_routes_to_human():
+    """Unknown type routes to ticket.triaged.human (fallback queue, no silent drop)."""
     from shared.topics import topic_for_triage_type
 
-    assert topic_for_triage_type("unknown") == "ticket.triaged.other"
-    assert topic_for_triage_type("") == "ticket.triaged.other"
+    assert topic_for_triage_type("unknown") == "ticket.triaged.human"
+    assert topic_for_triage_type("") == "ticket.triaged.human"
+
+
+def test_topic_for_triage_type_route_to_human_overrides():
+    """route_to_human=True overrides type and sends to human queue."""
+    from shared.topics import topic_for_triage_type
+
+    assert topic_for_triage_type("billing", route_to_human=True) == "ticket.triaged.human"
+    assert topic_for_triage_type("technical", route_to_human=False) == "ticket.triaged.technical"
 
 
 def test_topic_for_triage_type_account():
@@ -260,3 +268,42 @@ def test_build_triaged_event_excludes_customer_when_none():
     )
 
     assert "customer" not in triaged
+
+
+def test_build_triaged_event_adds_confidence_and_needs_review_when_low(monkeypatch):
+    """When confidence < threshold, needs_review is True."""
+    import triage.agent
+    monkeypatch.setattr(triage.agent, "CONFIDENCE_THRESHOLD", 0.8)
+
+    from triage.agent import build_triaged_event
+
+    result = {"type": "billing", "priority": "high", "reasoning": "Maybe billing.", "confidence": 0.5}
+    triaged = build_triaged_event(
+        ticket_id="TKT-004",
+        customer_id="cust-1",
+        trace_id="trace-1",
+        result=result,
+        subject="Charge",
+        body="Question",
+        customer=None,
+    )
+    assert triaged["confidence"] == 0.5
+    assert triaged["needs_review"] is True
+
+
+def test_build_triaged_event_needs_review_when_unknown_type_without_confidence():
+    """When type is unknown, needs_review is True even when confidence is absent."""
+    from triage.agent import build_triaged_event
+
+    result = {"type": "unknown", "priority": "medium", "reasoning": "Unclear category."}
+    triaged = build_triaged_event(
+        ticket_id="TKT-005",
+        customer_id="cust-2",
+        trace_id="trace-2",
+        result=result,
+        subject="???",
+        body="Weird ticket",
+        customer=None,
+    )
+    assert triaged["needs_review"] is True
+    assert "confidence" not in triaged

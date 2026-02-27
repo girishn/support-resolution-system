@@ -78,34 +78,46 @@ def test_agent_consumes_and_produces_kafka_messages():
         capture_output=True,
     )
 
-    time.sleep(35)
+    # Poll for triaged message instead of fixed sleep.
+    POLL_TIMEOUT_SEC = 75
+    POLL_INTERVAL_SEC = 8
+    CONSUMER_WAIT_MS = 5000
 
-    proc = subprocess.run(
-        [
-            "kubectl", "run", "int-consumer", "--rm", "-i", "--restart=Never",
-            "--image", image,
-            "-n", namespace,
-            "--", "kafka-console-consumer",
-            "--bootstrap-server", bootstrap,
-            "--topic", "ticket.triaged.billing",
-            "--from-beginning",
-            "--timeout-ms", "60000",
-        ],
-        capture_output=True,
-        text=True,
-    )
-
-    output = (proc.stdout or "") + (proc.stderr or "")
     found = None
-    for line in output.splitlines():
-        if ticket_id in line and "ticket.triaged" in line:
-            try:
-                found = json.loads(line.strip())
-                break
-            except json.JSONDecodeError:
-                continue
+    deadline = time.time() + POLL_TIMEOUT_SEC
+    last_output_snippet = ""
 
-    assert found is not None, f"No ticket.triaged for ticket_id={ticket_id}. Output: {output[-500:]}"
+    while time.time() < deadline:
+        proc = subprocess.run(
+            [
+                "kubectl", "run", "int-consumer", "--rm", "-i", "--restart=Never",
+                "--image", image,
+                "-n", namespace,
+                "--", "kafka-console-consumer",
+                "--bootstrap-server", bootstrap,
+                "--topic", "ticket.triaged.billing",
+                "--from-beginning",
+                "--timeout-ms", str(CONSUMER_WAIT_MS),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        output = (proc.stdout or "") + (proc.stderr or "")
+        last_output_snippet = output[-500:] if len(output) > 500 else output
+        for line in output.splitlines():
+            if ticket_id in line and "ticket.triaged" in line:
+                try:
+                    found = json.loads(line.strip())
+                    break
+                except json.JSONDecodeError:
+                    continue
+        if found is not None:
+            break
+        remaining = max(0, min(POLL_INTERVAL_SEC, deadline - time.time()))
+        if remaining > 0:
+            time.sleep(remaining)
+
+    assert found is not None, f"No ticket.triaged for ticket_id={ticket_id}. Output: {last_output_snippet}"
     assert found.get("event_type") == "ticket.triaged"
     assert found.get("type") == "billing"
     assert "priority" in found
